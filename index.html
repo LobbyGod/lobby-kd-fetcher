@@ -189,6 +189,13 @@
             <textarea id="playerNames" placeholder="Enter player names, one per line..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></textarea>
         </div>
 
+        <div class="settings">
+            <label style="display: flex; align-items: center; cursor: pointer; user-select: none;">
+                <input type="checkbox" id="skipZeroKD" style="width: auto; margin-right: 10px; cursor: pointer;">
+                <span>Skip players with 0.00 K/D when calculating average</span>
+            </label>
+        </div>
+
         <button id="fetchBtn" onclick="fetchPlayerStats()">Calculate Lobby K/D</button>
 
         <div id="results"></div>
@@ -267,19 +274,31 @@
             const resultsDiv = document.getElementById('results');
             let html = '';
 
+            // Check if we should skip zero KDs
+            const skipZeroKD = document.getElementById('skipZeroKD').checked;
+
             // Calculate and display average first
             if (validKDs.length > 0) {
-                const average = validKDs.reduce((sum, kd) => sum + kd, 0) / validKDs.length;
-                const failedCount = results.length - validKDs.length;
-                const hasFailures = failedCount > 0;
                 const zeroKDCount = validKDs.filter(kd => kd === 0).length;
                 const hasZeroKDs = zeroKDCount > 0;
 
+                // Filter KDs for average calculation
+                const kdsForAverage = skipZeroKD ? validKDs.filter(kd => kd !== 0) : validKDs;
+                const skippedCount = validKDs.length - kdsForAverage.length;
+
+                let average = 0;
+                if (kdsForAverage.length > 0) {
+                    average = kdsForAverage.reduce((sum, kd) => sum + kd, 0) / kdsForAverage.length;
+                }
+
+                const failedCount = results.length - validKDs.length;
+                const hasFailures = failedCount > 0;
+
                 html += `
                     <div class="lobby-average">
-                        Lobby Average K/D: ${average.toFixed(2)}
+                        Lobby Average K/D: ${kdsForAverage.length > 0 ? average.toFixed(2) : 'N/A'}
                         <div style="font-size: 0.6em; margin-top: 10px;">
-                            (${validKDs.length} of ${results.length} players)
+                            (${kdsForAverage.length} of ${results.length} players${skipZeroKD && skippedCount > 0 ? `, ${skippedCount} skipped` : ''})
                         </div>
                         ${hasFailures ? `
                         <div style="font-size: 0.7em; margin-top: 10px; color: #ffffcc; background: rgba(255, 255, 0, 0.2); padding: 8px; border-radius: 5px;">
