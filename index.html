@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BF6 Lobby K/D Calculator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #fff;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .settings {
+            margin-bottom: 25px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            font-size: 1.1em;
+        }
+
+        select {
+            width: 100%;
+            padding: 12px;
+            border-radius: 8px;
+            border: none;
+            font-size: 1em;
+            background: rgba(255, 255, 255, 0.9);
+            cursor: pointer;
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 200px;
+            padding: 15px;
+            border-radius: 8px;
+            border: none;
+            font-size: 1em;
+            resize: vertical;
+            font-family: inherit;
+            background: rgba(255, 255, 255, 0.9);
+        }
+
+        textarea::placeholder {
+            color: #666;
+        }
+
+        button {
+            width: 100%;
+            padding: 15px;
+            margin-top: 20px;
+            border: none;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-size: 1.2em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        #results {
+            margin-top: 30px;
+        }
+
+        .player-result {
+            background: rgba(255, 255, 255, 0.15);
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .player-result.error {
+            background: rgba(255, 0, 0, 0.2);
+        }
+
+        .player-result.success {
+            background: rgba(0, 255, 0, 0.1);
+        }
+
+        .player-name {
+            font-weight: 600;
+            font-size: 1.1em;
+        }
+
+        .player-kd {
+            font-size: 1.2em;
+            font-weight: 700;
+        }
+
+        .lobby-average {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            padding: 25px;
+            border-radius: 12px;
+            text-align: center;
+            font-size: 1.5em;
+            font-weight: 700;
+            margin-bottom: 20px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            font-size: 1.2em;
+        }
+
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid #fff;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error-message {
+            color: #ffcccc;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>BF6 Lobby K/D Calculator</h1>
+
+        <div class="settings">
+            <label for="platform">Platform:</label>
+            <select id="platform">
+                <option value="pc">PC</option>
+                <option value="xbox">Xbox</option>
+                <option value="psn">PlayStation</option>
+            </select>
+        </div>
+
+        <div class="settings">
+            <label for="playerNames">Player Names (one per line):</label>
+            <textarea id="playerNames" placeholder="Enter player names, one per line..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></textarea>
+        </div>
+
+        <button id="fetchBtn" onclick="fetchPlayerStats()">Calculate Lobby K/D</button>
+
+        <div id="results"></div>
+    </div>
+
+    <script>
+        async function fetchPlayerStats() {
+            const playerNames = document.getElementById('playerNames').value
+                .split('\n')
+                .map(name => name.trim())
+                .filter(name => name.length > 0);
+
+            if (playerNames.length === 0) {
+                alert('Please enter at least one player name');
+                return;
+            }
+
+            const platform = document.getElementById('platform').value;
+            const resultsDiv = document.getElementById('results');
+            const fetchBtn = document.getElementById('fetchBtn');
+
+            // Disable button and show loading
+            fetchBtn.disabled = true;
+            resultsDiv.innerHTML = '<div class="loading"><div class="spinner"></div>Fetching stats...</div>';
+
+            const results = [];
+            const validKDs = [];
+
+            // Fetch stats for each player
+            for (const playerName of playerNames) {
+                try {
+                    const url = `https://api.gametools.network/bf6/stats?name=${encodeURIComponent(playerName)}&platform=${platform}`;
+                    const response = await fetch(url);
+
+                    if (!response.ok) {
+                        results.push({
+                            name: playerName,
+                            error: `HTTP ${response.status}: ${response.statusText}`,
+                            kd: null
+                        });
+                        continue;
+                    }
+
+                    const data = await response.json();
+
+                    if (data.killDeath !== undefined && data.killDeath !== null) {
+                        const kd = parseFloat(data.killDeath);
+                        results.push({
+                            name: playerName,
+                            kd: kd,
+                            error: null
+                        });
+                        validKDs.push(kd);
+                    } else {
+                        results.push({
+                            name: playerName,
+                            error: 'K/D data not available',
+                            kd: null
+                        });
+                    }
+                } catch (error) {
+                    results.push({
+                        name: playerName,
+                        error: error.message,
+                        kd: null
+                    });
+                }
+            }
+
+            // Display results
+            displayResults(results, validKDs);
+            fetchBtn.disabled = false;
+        }
+
+        function displayResults(results, validKDs) {
+            const resultsDiv = document.getElementById('results');
+            let html = '';
+
+            // Calculate and display average first
+            if (validKDs.length > 0) {
+                const average = validKDs.reduce((sum, kd) => sum + kd, 0) / validKDs.length;
+                const failedCount = results.length - validKDs.length;
+                const hasFailures = failedCount > 0;
+                const zeroKDCount = validKDs.filter(kd => kd === 0).length;
+                const hasZeroKDs = zeroKDCount > 0;
+
+                html += `
+                    <div class="lobby-average">
+                        Lobby Average K/D: ${average.toFixed(2)}
+                        <div style="font-size: 0.6em; margin-top: 10px;">
+                            (${validKDs.length} of ${results.length} players)
+                        </div>
+                        ${hasFailures ? `
+                        <div style="font-size: 0.7em; margin-top: 10px; color: #ffffcc; background: rgba(255, 255, 0, 0.2); padding: 8px; border-radius: 5px;">
+                            ⚠️ ${failedCount} player${failedCount > 1 ? 's' : ''} failed to load
+                        </div>
+                        ` : ''}
+                        ${hasZeroKDs ? `
+                        <div style="font-size: 0.7em; margin-top: 10px; color: #ffffcc; background: rgba(255, 255, 0, 0.2); padding: 8px; border-radius: 5px;">
+                            ⚠️ ${zeroKDCount} player${zeroKDCount > 1 ? 's have' : ' has'} 0.00 K/D
+                        </div>
+                        ` : ''}
+                    </div>
+                `;
+            } else {
+                html += `
+                    <div class="lobby-average" style="background: rgba(255, 0, 0, 0.3);">
+                        No valid K/D data found
+                    </div>
+                `;
+            }
+
+            // Display individual player results
+            results.forEach(result => {
+                if (result.error) {
+                    html += `
+                        <div class="player-result error">
+                            <span class="player-name">${escapeHtml(result.name)}</span>
+                            <span class="error-message">${escapeHtml(result.error)}</span>
+                        </div>
+                    `;
+                } else {
+                    html += `
+                        <div class="player-result success">
+                            <span class="player-name">${escapeHtml(result.name)}</span>
+                            <span class="player-kd">K/D: ${result.kd.toFixed(2)}</span>
+                        </div>
+                    `;
+                }
+            });
+
+            resultsDiv.innerHTML = html;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>
